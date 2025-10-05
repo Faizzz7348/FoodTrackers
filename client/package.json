@@ -1,5 +1,8 @@
 {
   "scripts": {
     "build": "vite build --outDir public"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
   }
 }
