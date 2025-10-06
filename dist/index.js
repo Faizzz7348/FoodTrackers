@@ -1,8 +1,40 @@
-var __defProp = Object.defineProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
+
+// shared/schema.ts
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+var foodItems, insertFoodItemSchema, updateFoodItemSchema;
+var init_schema = __esm({
+  "shared/schema.ts"() {
+    "use strict";
+    foodItems = pgTable("food_items", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      name: text("name").notNull(),
+      expiryDate: timestamp("expiry_date", { withTimezone: true }).notNull(),
+      category: text("category").notNull(),
+      notes: text("notes"),
+      isDeleted: boolean("is_deleted").notNull().default(false),
+      deletedAt: timestamp("deleted_at", { withTimezone: true }),
+      createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`)
+    });
+    insertFoodItemSchema = createInsertSchema(foodItems).omit({
+      id: true,
+      isDeleted: true,
+      deletedAt: true,
+      createdAt: true
+    }).extend({
+      expiryDate: z.union([z.date(), z.string().transform((str) => new Date(str))])
+    });
+    updateFoodItemSchema = insertFoodItemSchema.partial().extend({
+      expiryDate: z.union([z.date(), z.string().transform((str) => new Date(str))]).optional()
+    });
+  }
+});
 
 // server/index.ts
 import express2 from "express";
@@ -10,102 +42,90 @@ import express2 from "express";
 // server/routes.ts
 import { createServer } from "http";
 
-// shared/schema.ts
-var schema_exports = {};
-__export(schema_exports, {
-  foodItems: () => foodItems,
-  insertFoodItemSchema: () => insertFoodItemSchema,
-  updateFoodItemSchema: () => updateFoodItemSchema
-});
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
-var foodItems = pgTable("food_items", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  expiryDate: timestamp("expiry_date", { withTimezone: true }).notNull(),
-  category: text("category").notNull(),
-  notes: text("notes"),
-  isDeleted: boolean("is_deleted").notNull().default(false),
-  deletedAt: timestamp("deleted_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`)
-});
-var insertFoodItemSchema = createInsertSchema(foodItems).omit({
-  id: true,
-  isDeleted: true,
-  deletedAt: true,
-  createdAt: true
-}).extend({
-  expiryDate: z.union([z.date(), z.string().transform((str) => new Date(str))])
-});
-var updateFoodItemSchema = insertFoodItemSchema.partial().extend({
-  expiryDate: z.union([z.date(), z.string().transform((str) => new Date(str))]).optional()
-});
-
-// server/db.ts
-import "dotenv/config";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
-neonConfig.webSocketConstructor = ws;
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?"
-  );
-}
-var pool = new Pool({ connectionString: process.env.DATABASE_URL });
-var db = drizzle({ client: pool, schema: schema_exports });
-
 // server/storage.ts
+init_schema();
+import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
-var DatabaseStorage = class {
+var MemStorage = class {
+  foodItems;
+  constructor() {
+    this.foodItems = /* @__PURE__ */ new Map();
+  }
   async getFoodItems() {
-    return await db.select().from(foodItems).where(eq(foodItems.isDeleted, false));
+    return Array.from(this.foodItems.values()).filter((item) => !item.isDeleted);
   }
   async getDeletedFoodItems() {
-    return await db.select().from(foodItems).where(eq(foodItems.isDeleted, true));
+    return Array.from(this.foodItems.values()).filter((item) => item.isDeleted);
   }
   async getFoodItem(id) {
-    const [item] = await db.select().from(foodItems).where(eq(foodItems.id, id));
-    return item || void 0;
+    return this.foodItems.get(id);
   }
   async createFoodItem(insertItem) {
-    const [item] = await db.insert(foodItems).values({
+    const id = randomUUID();
+    const now = /* @__PURE__ */ new Date();
+    const item = {
       ...insertItem,
+      id,
+      isDeleted: false,
+      deletedAt: null,
+      createdAt: now,
       notes: insertItem.notes || null
-    }).returning();
+    };
+    this.foodItems.set(id, item);
     return item;
   }
   async updateFoodItem(id, updateItem) {
-    const [item] = await db.update(foodItems).set(updateItem).where(eq(foodItems.id, id)).returning();
-    return item || void 0;
+    const existingItem = this.foodItems.get(id);
+    if (!existingItem) {
+      return void 0;
+    }
+    const updatedItem = {
+      ...existingItem,
+      ...updateItem
+    };
+    this.foodItems.set(id, updatedItem);
+    return updatedItem;
   }
   async deleteFoodItem(id) {
-    const [item] = await db.update(foodItems).set({
+    const item = this.foodItems.get(id);
+    if (!item) {
+      return false;
+    }
+    const deletedItem = {
+      ...item,
       isDeleted: true,
       deletedAt: /* @__PURE__ */ new Date()
-    }).where(eq(foodItems.id, id)).returning();
-    return !!item;
+    };
+    this.foodItems.set(id, deletedItem);
+    return true;
   }
   async restoreFoodItem(id) {
-    const [item] = await db.update(foodItems).set({
+    const item = this.foodItems.get(id);
+    if (!item || !item.isDeleted) {
+      return false;
+    }
+    const restoredItem = {
+      ...item,
       isDeleted: false,
       deletedAt: null
-    }).where(eq(foodItems.id, id)).returning();
-    return !!item;
+    };
+    this.foodItems.set(id, restoredItem);
+    return true;
   }
   async permanentDeleteFoodItem(id) {
-    const result = await db.delete(foodItems).where(eq(foodItems.id, id));
-    return (result.rowCount ?? 0) > 0;
+    return this.foodItems.delete(id);
   }
   async clearTrash() {
-    await db.delete(foodItems).where(eq(foodItems.isDeleted, true));
+    const deletedItems = Array.from(this.foodItems.values()).filter((item) => item.isDeleted);
+    deletedItems.forEach((item) => {
+      this.foodItems.delete(item.id);
+    });
   }
 };
-var storage = new DatabaseStorage();
+var storage = new MemStorage();
 
 // server/routes.ts
+init_schema();
 import { z as z2 } from "zod";
 async function registerRoutes(app2) {
   app2.get("/api/food-items", async (req, res) => {

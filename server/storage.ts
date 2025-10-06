@@ -1,6 +1,5 @@
 import { type FoodItem, type InsertFoodItem, type UpdateFoodItem, foodItems } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
@@ -107,21 +106,29 @@ export class MemStorage implements IStorage {
 
 // DatabaseStorage implementation
 export class DatabaseStorage implements IStorage {
+  private db: any;
+
+  constructor() {
+    // Lazy load db only when DatabaseStorage is instantiated
+    const { db } = require("./db");
+    this.db = db;
+  }
+
   async getFoodItems(): Promise<FoodItem[]> {
-    return await db.select().from(foodItems).where(eq(foodItems.isDeleted, false));
+    return await this.db.select().from(foodItems).where(eq(foodItems.isDeleted, false));
   }
 
   async getDeletedFoodItems(): Promise<FoodItem[]> {
-    return await db.select().from(foodItems).where(eq(foodItems.isDeleted, true));
+    return await this.db.select().from(foodItems).where(eq(foodItems.isDeleted, true));
   }
 
   async getFoodItem(id: string): Promise<FoodItem | undefined> {
-    const [item] = await db.select().from(foodItems).where(eq(foodItems.id, id));
+    const [item] = await this.db.select().from(foodItems).where(eq(foodItems.id, id));
     return item || undefined;
   }
 
   async createFoodItem(insertItem: InsertFoodItem): Promise<FoodItem> {
-    const [item] = await db
+    const [item] = await this.db
       .insert(foodItems)
       .values({
         ...insertItem,
@@ -132,7 +139,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateFoodItem(id: string, updateItem: UpdateFoodItem): Promise<FoodItem | undefined> {
-    const [item] = await db
+    const [item] = await this.db
       .update(foodItems)
       .set(updateItem)
       .where(eq(foodItems.id, id))
@@ -141,7 +148,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteFoodItem(id: string): Promise<boolean> {
-    const [item] = await db
+    const [item] = await this.db
       .update(foodItems)
       .set({
         isDeleted: true,
@@ -153,7 +160,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async restoreFoodItem(id: string): Promise<boolean> {
-    const [item] = await db
+    const [item] = await this.db
       .update(foodItems)
       .set({
         isDeleted: false,
@@ -165,12 +172,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async permanentDeleteFoodItem(id: string): Promise<boolean> {
-    const result = await db.delete(foodItems).where(eq(foodItems.id, id));
+    const result = await this.db.delete(foodItems).where(eq(foodItems.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 
   async clearTrash(): Promise<void> {
-    await db.delete(foodItems).where(eq(foodItems.isDeleted, true));
+    await this.db.delete(foodItems).where(eq(foodItems.isDeleted, true));
   }
 }
 
