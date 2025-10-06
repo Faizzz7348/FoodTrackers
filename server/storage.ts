@@ -174,4 +174,7 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Use in-memory storage by default. Switch to DatabaseStorage for production.
+// To use database storage, set DATABASE_URL in .env and uncomment the line below:
+// export const storage = new DatabaseStorage();
+export const storage = new MemStorage();
