@@ -71,10 +71,14 @@ The app will be available at `http://localhost:5000`
 
 This application is designed to be deployed with the frontend on Vercel and the backend on Render.
 
-### Quick Deployment Guide
+### 🚀 Quick Start (Recommended for First-Time Deployment)
+Follow the [Quick Start Guide](./QUICK_START.md) for a simplified step-by-step deployment process (takes ~20 minutes).
+
+### 📚 Detailed Deployment Guides
 
 1. **Deploy Backend to Render** - See [Render Deployment Guide](./README_render_backend.md)
 2. **Deploy Frontend to Vercel** - See [Vercel Deployment Guide](./README_deploy_varcel.md)
+3. **Verify Deployment** - Use the [Deployment Checklist](./DEPLOYMENT_CHECKLIST.md)
 
 ### Deployment Overview
 
@@ -82,7 +86,13 @@ This application is designed to be deployed with the frontend on Vercel and the 
 - **Backend**: Deployed to Render as a Node.js service
 - **Database**: Neon PostgreSQL (cloud-hosted)
 
-For detailed step-by-step instructions, see the deployment guides linked above.
+### What You'll Need
+- GitHub account (for version control)
+- Vercel account (free tier available)
+- Render account (free tier available)
+- Neon PostgreSQL database (free tier available)
+
+Total deployment time: ~20-30 minutes for first-time setup
 
 ## 📁 Project Structure
 
