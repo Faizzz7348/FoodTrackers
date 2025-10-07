@@ -1,5 +1,7 @@
 # FoodTrackers - Food Expiration Manager
 
+> 🚀 **NEW!** Having deployment issues? Check **[START_HERE.md](./START_HERE.md)** for the complete deployment fix guide!
+
 A full-stack web application to track food expiration dates and reduce food waste. Features a modern dark glass-themed UI with calendar views, countdown warnings, and smart notifications.
 
 ## 🚀 Features
